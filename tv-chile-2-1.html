@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV Chile — Televisión en Vivo</title>
+
+<!-- ═══ SECURITY HEADERS ═══ -->
+<!-- Bloquea iframes embebidos (clickjacking) -->
+<meta http-equiv="X-Frame-Options" content="DENY">
+<!-- Evita sniffing de tipo MIME -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<!-- No enviar referrer a los servidores de stream -->
+<meta name="referrer" content="no-referrer">
+<!-- Política de permisos: sin cámara, micrófono ni geolocalización -->
+<meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
+<!-- CSP: solo permite scripts/media de orígenes conocidos y seguros -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
+  style-src  'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net;
+  font-src   https://fonts.gstatic.com;
+  img-src    'self' data: https://pics.filmaffinity.com;
+  media-src  https: blob:;
+  connect-src https: wss:;
+  frame-src  'none';
+  object-src 'none';
+  base-uri   'self';
+  form-action 'none';
+">
+
+<!-- Clappr Player con HLS nativo -->
+<script src="https://cdn.jsdelivr.net/npm/clappr@0.4.10/dist/clappr.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --font: 'Outfit', system-ui, sans-serif;
+  --text:    #f2f2f5;
+  --text2:   rgba(242,242,245,0.5);
+  --text3:   rgba(242,242,245,0.3);
+  --border:  rgba(255,255,255,0.10);
+  --border2: rgba(255,255,255,0.06);
+  --glass-nav:  rgba(6,6,14,0.78);
+  --glass-card: rgba(10,10,22,0.42);
+  --glass-card-h: rgba(18,18,38,0.58);
+  --glass-modal: rgba(8,8,20,0.92);
+  --red:   #ff4757;
+  --green: #2ed573;
+  --gold:  #ffd32a;
+  --r: 20px;
+  --r2: 12px;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  background: #04040e;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   FONDO INTERSTELLAR
+═══════════════════════════════════════════ */
+.bg-img {
+  position: fixed; inset: 0; z-index: 0;
+  background: url('https://pics.filmaffinity.com/Interestelar-229339994-large.jpg')
+              center 30% / cover no-repeat;
+  transform: scale(1.05) translateZ(0);
+  filter: brightness(0.28) saturate(0.6);
+  will-change: transform;
+}
+.bg-vignette {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(4,4,14,0.7) 100%);
+}
+.bg-top {
+  position: fixed; top: 0; left: 0; right: 0; height: 200px; z-index: 1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(4,4,14,0.6), transparent);
+}
+/* noise grain */
+body::after {
+  content:''; position:fixed; inset:0; z-index:9998; pointer-events:none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  opacity: .5;
+}
+
+/* ═══════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════ */
+#app { position: relative; z-index: 2; min-height: 100vh; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* ═══════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; height: 66px; z-index: 500;
+  background: var(--glass-nav);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 32px; gap: 20px;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 12px;
+  margin-right: auto; text-decoration: none; color: var(--text);
+}
+.logo-mark {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-mark svg { width: 18px; height: 18px; fill: var(--text); }
+.logo-name {
+  font-size: 17px; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.55));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.logo-sub { font-size: 11px; color: var(--text2); font-weight: 400; letter-spacing: 0.5px; margin-top: -1px; }
+
+/* Search */
+.srch-wrap { position: relative; flex: 0 0 260px; }
+.srch {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 9px 16px 9px 38px;
+  color: var(--text); font-size: 13.5px; font-family: var(--font);
+  font-weight: 500; outline: none; transition: .2s;
+}
+.srch::placeholder { color: var(--text3); }
+.srch:focus { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); }
+.srch-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+
+/* Live indicator */
+.live-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,71,87,0.12);
+  border: 1px solid rgba(255,71,87,0.28);
+  border-radius: 20px; padding: 5px 14px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: #ff6b6b;
+}
+.dot-live { width: 7px; height: 7px; background: var(--red); border-radius: 50%; box-shadow: 0 0 8px var(--red); animation: blink 1.6s ease infinite; }
+
+/* ═══════════════════════════════════════════
+   MAIN / HOME
+═══════════════════════════════════════════ */
+main { padding: 90px 32px 60px; }
+
+/* Hero */
+.hero { margin-bottom: 40px; animation: fadeUp .7s ease both; }
+.hero-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.hero-eyebrow::before { content:''; width: 28px; height: 1px; background: rgba(255,255,255,0.2); }
+.hero h1 {
+  font-size: clamp(30px, 5vw, 52px);
+  font-weight: 900; letter-spacing: -2px; line-height: 1.05;
+  background: linear-gradient(160deg, #fff 40%, rgba(255,255,255,0.45));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero p { color: var(--text2); font-size: 15px; margin-top: 10px; font-weight: 400; max-width: 420px; line-height: 1.6; }
+
+/* Stats row */
+.stats-row { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; animation: fadeUp .5s .12s ease both; }
+.stat-chip {
+  background: rgba(255,255,255,0.055);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border2); border-radius: 24px;
+  padding: 6px 16px; font-size: 12px; font-weight: 600; color: var(--text2);
+  display: flex; align-items: center; gap: 8px;
+}
+.stat-chip strong { color: var(--text); font-weight: 700; }
+
+/* Cat tabs */
+.cat-row { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; animation: fadeUp .5s .18s ease both; }
+.cat-tab {
+  background: rgba(255,255,255,0.045);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text2); padding: 7px 20px; border-radius: 24px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: .2s; font-family: var(--font);
+  letter-spacing: 0.2px;
+}
+.cat-tab:hover { background: rgba(255,255,255,0.09); color: var(--text); }
+.cat-tab.active {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.26);
+  color: var(--text); font-weight: 700;
+}
+
+/* Section label */
+.section-lbl {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+  color: var(--text3); margin-bottom: 18px;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+
+/* ═══════════════════════════════════════════
+   CHANNEL GRID & CARDS
+═══════════════════════════════════════════ */
+.ch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.ch-card {
+  position: relative; overflow: hidden;
+  border-radius: var(--r);
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  display: flex; flex-direction: column;
+  animation: fadeUp .35s ease both;
+  transition: transform .28s cubic-bezier(.4,0,.2,1), box-shadow .28s, border-color .28s;
+
+  background: var(--glass-card);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: 0 4px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,0.08);
+  will-change: transform;
+}
+/* top sheen */
+.ch-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+}
+.ch-card:hover {
+  transform: translateY(-7px) scale(1.022);
+  border-color: rgba(255,255,255,0.22);
+  box-shadow: 0 24px 60px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.14);
+  background: var(--glass-card-h);
+}
+.ch-card:active { transform: scale(.97); }
+
+/* Logo area */
+.ch-logo-wrap {
+  width: 100%; aspect-ratio: 16/9;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  border-radius: var(--r) var(--r) 0 0;
+}
+/* blurred color bg behind logo */
+.ch-logo-bg {
+  position: absolute; inset: 0;
+  opacity: 0.22;
+  filter: blur(30px);
+  transform: scale(1.3);
+}
+.ch-logo {
+  position: relative; z-index: 1;
+  font-size: clamp(22px, 3.5vw, 34px);
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  font-family: var(--font);
+  line-height: 1;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+  user-select: none;
+}
+
+/* Card body */
+.ch-body { padding: 14px 16px 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.ch-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ch-name { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.2; }
+.ch-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+  padding: 3px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text2); margin-top: 2px;
+}
+.ch-desc {
+  font-size: 12px; color: var(--text2); line-height: 1.55; font-weight: 400;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ch-meta {
+  display: flex; align-items: center; gap: 8px; margin-top: 2px;
+  flex-wrap: wrap;
+}
+.ch-tag {
+  font-size: 10.5px; font-weight: 600; color: var(--text3);
+  display: flex; align-items: center; gap: 4px;
+}
+.ch-tag svg { opacity: .5; }
+
+/* Play button overlay on hover */
+.ch-play-hint {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .22s;
+  border-radius: var(--r) var(--r) 0 0;
+  pointer-events: none;
+}
+.ch-card:hover .ch-play-hint { background: rgba(0,0,0,0.25); }
+.play-circle {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transform: scale(0); transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+.ch-card:hover .play-circle { transform: scale(1); }
+
+/* ═══════════════════════════════════════════
+   PAGINATION
+═══════════════════════════════════════════ */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; margin-top: 44px; padding-bottom: 8px;
+  animation: fadeUp .4s .2s ease both;
+}
+.pg-btn {
+  background: rgba(255,255,255,0.055);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border2); color: var(--text2);
+  min-width: 38px; height: 38px; border-radius: 11px;
+  padding: 0 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13.5px; font-weight: 700; cursor: pointer; transition: .2s;
+  font-family: var(--font);
+}
+.pg-btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: var(--text); border-color: rgba(255,255,255,0.2); }
+.pg-btn.active { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35); color: var(--text); }
+.pg-btn:disabled { opacity: .3; cursor: not-allowed; }
+.pg-dots { font-size: 13px; color: var(--text3); padding: 0 4px; }
+.pg-info { font-size: 12px; color: var(--text3); padding: 0 10px; font-weight: 500; }
+
+/* ═══════════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════════ */
+.empty { text-align: center; padding: 80px 20px; color: var(--text3); }
+.empty-icon { font-size: 40px; margin-bottom: 16px; opacity: .4; }
+.empty h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: var(--text2); }
+.empty p { font-size: 13px; }
+
+/* ═══════════════════════════════════════════
+   CHANNEL DETAIL MODAL
+═══════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 800;
+  background: rgba(2,2,10,0.75);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.modal {
+  background: var(--glass-modal);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+  width: 100%; max-width: 540px;
+  box-shadow: 0 40px 100px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,0.1);
+  transform: scale(.94) translateY(16px);
+  transition: transform .35s cubic-bezier(.34,1.2,.64,1);
+  overflow: hidden;
+}
+.modal-backdrop.open .modal { transform: scale(1) translateY(0); }
+
+/* Modal logo header */
+.modal-header {
+  aspect-ratio: 21/9; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.modal-logo-bg {
+  position: absolute; inset: 0; opacity: .3; filter: blur(60px); transform: scale(1.5);
+}
+.modal-logo-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(8,8,20,0.95));
+}
+.modal-logo-text {
+  position: relative; z-index: 1;
+  font-size: clamp(42px, 8vw, 72px);
+  font-weight: 900; letter-spacing: -3px;
+  font-family: var(--font);
+  text-shadow: 0 4px 30px rgba(0,0,0,0.7);
+  user-select: none;
+}
+.modal-close {
+  position: absolute; top: 14px; right: 14px; z-index: 10;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text); width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: .2s; font-size: 16px;
+}
+.modal-close:hover { background: rgba(255,255,255,0.1); }
+
+/* Modal body */
+.modal-body { padding: 22px 26px 26px; }
+.modal-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.modal-ch-name { font-size: 24px; font-weight: 900; letter-spacing: -0.7px; }
+.modal-cat-badge {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+  padding: 4px 10px; border-radius: 8px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text2);
+}
+.modal-desc { font-size: 14px; color: var(--text2); line-height: 1.65; margin-bottom: 20px; font-weight: 400; }
+
+/* Specs grid */
+.specs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 22px; }
+.spec-item {
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 12px 14px;
+}
+.spec-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 4px; }
+.spec-val { font-size: 14px; font-weight: 700; color: var(--text); }
+
+/* Play button in modal */
+.modal-play-btn {
+  width: 100%; padding: 15px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--r2);
+  color: var(--text); font-size: 15px; font-weight: 800; font-family: var(--font);
+  letter-spacing: -0.2px; cursor: pointer; transition: .2s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.modal-play-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.36); transform: scale(1.01); }
+.modal-play-btn svg { flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════
+   PLAYER VIEW
+═══════════════════════════════════════════ */
+#player-view { padding-top: 66px; }
+
+.pl-topbar {
+  background: rgba(4,4,14,0.85);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
+  display: flex; align-items: center; gap: 18px;
+}
+.back-btn {
+  background: rgba(255,255,255,0.07); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 18px 8px 13px; border-radius: 24px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; transition: .2s; font-family: var(--font);
+}
+.back-btn:hover { background: rgba(255,255,255,0.14); }
+.pl-info { flex: 1; min-width: 0; }
+.pl-ch-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
+.pl-ch-cat  { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+.pl-box { background: #000; position: relative; width: 100%; aspect-ratio: 16/9; max-height: calc(100vh - 230px); overflow: hidden; }
+#clapprPlayer { position: absolute; inset: 0; width: 100%; height: 100%; }
+#clapprPlayer > div { width: 100% !important; height: 100% !important; }
+#clapprPlayer video { width: 100% !important; height: 100% !important; display: block; object-fit: contain; background: #000; }
+#clapprPlayer .media-control { z-index: 10; }
+.pl-grad { position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 55%, rgba(0,0,0,.85)); pointer-events: none; }
+.pl-label { position: absolute; bottom: 0; left: 0; padding: 22px 26px; }
+.pl-label-name { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; text-shadow: 0 2px 12px rgba(0,0,0,.9); }
+.pl-label-sub  { font-size: 13px; color: rgba(255,255,255,.5); margin-top: 4px; }
+
+.pl-loading { position: absolute; inset: 0; background: rgba(0,0,0,.75); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,.1); border-top-color: rgba(255,255,255,.7); border-radius: 50%; animation: spin .8s linear infinite; }
+
+.pl-error { background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.25); color: #ff6b6b; border-radius: 12px; padding: 14px 18px; font-size: 13px; margin: 14px 28px; display: none; font-weight: 500; }
+.pl-error.show { display: block; }
+
+/* ── SECURITY BAR ── */
+.sec-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 28px;
+  background: rgba(0,0,0,0.28);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-wrap: wrap;
+}
+.sec-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  padding: 4px 12px; border-radius: 20px;
+}
+.sec-badge.ok   { background: rgba(46,213,115,0.1); border: 1px solid rgba(46,213,115,0.22); color: #2ed573; }
+.sec-badge.warn { background: rgba(255,179,2,0.1);  border: 1px solid rgba(255,179,2,0.22);  color: #ffb302; }
+.sec-badge.fail { background: rgba(255,71,87,0.1);  border: 1px solid rgba(255,71,87,0.22);  color: #ff4757; }
+.sec-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink:0; }
+.sec-url-preview {
+  font-size: 11px; color: rgba(255,255,255,0.28); font-family: 'SF Mono','Fira Code',monospace;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px; padding: 3px 10px;
+  max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sec-checks {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto;
+}
+.sec-check {
+  font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,0.3);
+  display: flex; align-items: center; gap: 4px;
+}
+.sec-check.pass { color: rgba(46,213,115,0.7); }
+.sec-check.fail { color: rgba(255,71,87,0.7); }
+
+.related-sec { padding: 28px 28px 40px; }
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 32px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: rgba(8,8,22,0.96); backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  color: var(--text); padding: 12px 26px; border-radius: 32px;
+  font-size: 14px; font-weight: 600; z-index: 9997;
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: none;
+  box-shadow: 0 10px 40px rgba(0,0,0,.6);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════ */
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes blink  { 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes spin   { to{transform:rotate(360deg)} }
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media(max-width:700px){
+  nav{padding:0 16px;gap:12px;height:58px}
+  main{padding:76px 16px 50px}
+  .srch-wrap{flex:0 0 170px}
+  .logo-sub{display:none}
+  .ch-grid{grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}
+  .pl-topbar,.related-sec{padding:12px 16px}
+  .modal-body{padding:16px 18px 20px}
+  .specs-grid{grid-template-columns:repeat(2,1fr)}
+  .pagination{gap:4px}
+  .pg-btn{min-width:34px;height:34px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-img"></div>
+<div class="bg-vignette"></div>
+<div class="bg-top"></div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══ CHANNEL DETAIL MODAL ══ -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header" id="modalHeader">
+      <div class="modal-logo-bg" id="modalLogoBg"></div>
+      <div class="modal-logo-overlay"></div>
+      <div class="modal-logo-text" id="modalLogoText"></div>
+      <button class="modal-close" onclick="hideModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-title-row">
+        <div class="modal-ch-name" id="modalName"></div>
+        <div class="modal-cat-badge" id="modalCat"></div>
+      </div>
+      <p class="modal-desc" id="modalDesc"></p>
+      <div class="specs-grid" id="specsGrid"></div>
+      <button class="modal-play-btn" id="modalPlayBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        Ver en vivo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NAV ══ -->
+<nav>
+  <a class="logo" href="#" onclick="showView('home'); return false;">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2.5"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </div>
+    <div>
+      <div class="logo-name">TV Chile</div>
+      <div class="logo-sub">Televisión en vivo</div>
+    </div>
+  </a>
+
+  <div class="srch-wrap">
+    <svg class="srch-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+    <input class="srch" id="srchInput" placeholder="Buscar canal…" oninput="filterCh()">
+  </div>
+
+  <div class="live-pill">
+    <div class="dot-live"></div>
+    En Vivo
+  </div>
+</nav>
+
+<div id="app">
+
+<!-- ████ HOME ████ -->
+<div id="home-view" class="view active">
+  <main>
+    <div class="hero">
+      <div class="hero-eyebrow">Televisión Chilena</div>
+      <h1>Tus canales<br>favoritos.</h1>
+      <p>Transmisión en vivo de los mejores canales de Chile, directamente en tu navegador.</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-chip"><strong id="chCount">0</strong> canales disponibles</div>
+      <div class="stat-chip" id="srcPill">📄 channels.json</div>
+    </div>
+
+    <div class="cat-row" id="catRow"></div>
+
+    <div class="section-lbl" id="secLbl">Todos los canales</div>
+    <div class="ch-grid" id="chGrid"></div>
+    <div class="pagination" id="pagination"></div>
+
+    <div class="empty" id="emptyState" style="display:none">
+      <div class="empty-icon">📡</div>
+      <h3>Sin resultados</h3>
+      <p>Prueba con otro término o categoría</p>
+    </div>
+  </main>
+</div>
+
+<!-- ████ PLAYER ████ -->
+<div id="player-view" class="view">
+  <div class="pl-topbar">
+    <button class="back-btn" onclick="showView('home')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+      Volver
+    </button>
+    <div class="pl-info">
+      <div class="pl-ch-name" id="plName"></div>
+      <div class="pl-ch-cat"  id="plCat"></div>
+    </div>
+    <div class="live-pill"><div class="dot-live"></div>En Vivo</div>
+  </div>
+
+  <div class="pl-box">
+    <div id="clapprPlayer"></div>
+    <div class="pl-grad"></div>
+    <div class="pl-label">
+      <div class="pl-label-name" id="plLabelName"></div>
+      <div class="pl-label-sub"  id="plLabelSub"></div>
+    </div>
+    <div class="pl-loading" id="plLoading">
+      <div class="spinner"></div>
+      <div style="font-size:13px;color:rgba(255,255,255,.45);font-weight:500">Cargando transmisión…</div>
+    </div>
+  </div>
+
+  <div class="pl-error" id="plError"></div>
+
+  <!-- SECURITY BAR -->
+  <div class="sec-bar" id="secBar">
+    <div id="secBadge" class="sec-badge ok"><div class="sec-dot"></div>Verificando…</div>
+    <div class="sec-url-preview" id="secUrlPreview"></div>
+    <div class="sec-checks" id="secChecks"></div>
+  </div>
+
+  <div class="related-sec">
+    <div class="section-lbl">Otros canales</div>
+    <div class="ch-grid" id="relGrid"></div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ╔══════════════════════════════════════════════════════╗
+//  🔒 SECURE PLAYER — MÓDULO DE SEGURIDAD
+// ╚══════════════════════════════════════════════════════╝
+
+const Security = (() => {
+
+  // Protocolos permitidos (solo HTTPS y WSS)
+  const ALLOWED_PROTOCOLS = ['https:', 'wss:'];
+
+  // Patrones peligrosos que nunca deben estar en una URL de stream
+  const DANGEROUS_PATTERNS = [
+    /^javascript:/i,
+    /^data:/i,
+    /^vbscript:/i,
+    /^file:/i,
+    /<script/i,
+    /on\w+\s*=/i,       // event handlers: onerror=, onclick=, etc.
+    /[\x00-\x1f]/,      // caracteres de control
+    /\.\.\//,           // path traversal
+  ];
+
+  // Extensiones/paths de stream permitidos
+  const STREAM_PATTERNS = [
+    /\.m3u8(\?.*)?$/i,
+    /\/playlist\.m3u8/i,
+    /\/live(\?.*)?$/i,
+    /\/index\.m3u8/i,
+    /livestream/i,
+    /\/hls\//i,
+  ];
+
+  // Dominios en blocklist (ejemplos de dominios maliciosos conocidos)
+  const BLOCKED_DOMAINS = [
+    'malware.com',
+    'phishing.net',
+  ];
+
+  /**
+   * Valida una URL de stream M3U8
+   * Retorna { ok: boolean, issues: string[], level: 'ok'|'warn'|'fail', domain: string }
+   */
+  function validateStreamURL(rawUrl) {
+    const issues = [];
+    const checks = {
+      isHttps:     false,
+      noMalicious: false,
+      isM3U8:      false,
+      notBlocked:  false,
+      validParsed: false,
+    };
+
+    // 1. Comprobar que la URL no esté vacía
+    if (!rawUrl || typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+      return { ok: false, issues: ['URL vacía'], level: 'fail', domain: '—', checks };
+    }
+
+    const url = rawUrl.trim();
+
+    // 2. Detectar patrones peligrosos antes de parsear
+    for (const pattern of DANGEROUS_PATTERNS) {
+      if (pattern.test(url)) {
+        issues.push('URL contiene patrón peligroso: ' + pattern.toString());
+        return { ok: false, issues, level: 'fail', domain: '—', checks };
+      }
+    }
+    checks.noMalicious = true;
+
+    // 3. Parsear la URL
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      issues.push('URL malformada o inválida');
+      return { ok: false, issues, level: 'fail', domain: '—', checks };
+    }
+    checks.validParsed = true;
+
+    const domain = parsed.hostname;
+
+    // 4. Solo HTTPS (nunca HTTP en producción)
+    if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+      issues.push(`Protocolo inseguro: ${parsed.protocol} (se requiere HTTPS)`);
+      // No bloqueamos, pero advertimos
+    } else {
+      checks.isHttps = true;
+    }
+
+    // 5. Dominio en blocklist
+    if (BLOCKED_DOMAINS.some(bd => domain === bd || domain.endsWith('.' + bd))) {
+      issues.push(`Dominio bloqueado: ${domain}`);
+      return { ok: false, issues, level: 'fail', domain, checks };
+    }
+    checks.notBlocked = true;
+
+    // 6. Verificar que parece un stream M3U8/HLS
+    const fullPath = parsed.pathname + parsed.search;
+    const looksLikeStream = STREAM_PATTERNS.some(p => p.test(fullPath) || p.test(url));
+    if (!looksLikeStream) {
+      issues.push('La URL no parece ser un stream M3U8 válido');
+    } else {
+      checks.isM3U8 = true;
+    }
+
+    // 7. Advertencia si es HTTP (no HTTPS)
+    if (parsed.protocol === 'http:') {
+      issues.push('Stream sin cifrado HTTPS — puede exponer datos al usuario');
+    }
+
+    const allGood = checks.isHttps && checks.noMalicious && checks.isM3U8 && checks.notBlocked && checks.validParsed;
+    const level = allGood ? 'ok' : (issues.length === 0 || checks.validParsed && checks.notBlocked) ? 'warn' : 'fail';
+
+    return {
+      ok: checks.validParsed && checks.notBlocked && checks.noMalicious,
+      issues,
+      level,
+      domain,
+      checks,
+    };
+  }
+
+  /**
+   * Sanitiza texto para mostrar en UI (previene XSS)
+   */
+  function sanitizeText(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
+  }
+
+  /**
+   * Extrae solo el dominio de una URL para mostrarlo (sin revelar la URL completa)
+   */
+  function safeDisplayURL(url) {
+    try {
+      const p = new URL(url);
+      return `${p.protocol}//${p.hostname}/…`;
+    } catch { return '—'; }
+  }
+
+  /**
+   * Configuración segura para HLS.js
+   */
+  const SAFE_HLS_CONFIG = {
+    enableWorker: true,
+    lowLatencyMode: false,       // desactivar low-latency reduce ataques de timing
+    backBufferLength: 60,
+    maxBufferLength: 30,
+    maxMaxBufferLength: 60,
+    maxBufferSize: 60 * 1000 * 1000,   // 60MB max buffer
+    maxBufferHole: 0.5,
+    // Límites de reintentos para evitar loops infinitos
+    manifestLoadingMaxRetry: 3,
+    manifestLoadingRetryDelay: 1000,
+    manifestLoadingMaxRetryTimeout: 8000,
+    levelLoadingMaxRetry: 3,
+    levelLoadingRetryDelay: 1000,
+    fragLoadingMaxRetry: 4,
+    fragLoadingRetryDelay: 1000,
+    // Timeouts estrictos
+    manifestLoadingTimeOut: 10000,
+    levelLoadingTimeOut: 10000,
+    fragLoadingTimeOut: 20000,
+    // No seguir redirects infinitos
+    maxFragLookUpTolerance: 0.25,
+    // Fetch: solo CORS con credenciales anónimas
+    fetchSetup: (ctx, initParams) => {
+      initParams.credentials = 'omit';       // no enviar cookies a CDNs externos
+      initParams.referrerPolicy = 'no-referrer';
+      return new Request(ctx.url, initParams);
+    },
+    xhrSetup: (xhr, url) => {
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    },
+  };
+
+  return { validateStreamURL, sanitizeText, safeDisplayURL, SAFE_HLS_CONFIG };
+})();
+
+// ══════════════════════════════════════════════
+//  DEFAULTS (channels with descriptions & specs)
+// ══════════════════════════════════════════════
+const DEFAULTS = [
+  {"id":1,"name":"TVN","logo_text":"TVN","logo_color":"#1a4fd6","logo_text_color":"#ffffff","url":"https://d1gb9psy75ky90.cloudfront.net/national/live/576p30/index.m3u8","cat":"Nacional","description":"Televisión Nacional de Chile, el canal público del país. Ofrece noticieros, programas de farándula, series y eventos deportivos de alcance nacional.","resolution":"576p","region":"Nacional","founded":"1969","website":"https://www.tvn.cl"},
+  {"id":2,"name":"Canal 13","logo_text":"C13","logo_color":"#c89a10","logo_text_color":"#ffffff","url":"https://live.canal13.cl/live.m3u8","cat":"Nacional","description":"Canal 13 es uno de los canales de televisión más antiguos de Chile. Transmite noticieros, teleseries, entretenimiento y contenido premium para toda la familia.","resolution":"HD","region":"Nacional","founded":"1959","website":"https://www.canal13.cl"},
+  {"id":3,"name":"Mega","logo_text":"MEGA","logo_color":"#d43010","logo_text_color":"#ffffff","url":"https://d1x0mwiac2rqwt.cloudfront.net/5e5vl4nq4oughe4s/index.m3u8","cat":"Nacional","description":"Mega es el canal de entretenimiento líder en Chile. Reconocido por sus teleseries de alto rating, programas de variedades, realities y transmisión deportiva.","resolution":"HD","region":"Nacional","founded":"1990","website":"https://www.mega.cl"},
+  {"id":4,"name":"CHV","logo_text":"CHV","logo_color":"#b03020","logo_text_color":"#ffffff","url":"https://d2gg3tblxgbsh1.cloudfront.net/out/v1/5f4fe434b5454db58d2b5f31ca1c30ea/index.m3u8","cat":"Nacional","description":"Chilevisión es un canal de televisión abierta nacional, parte del grupo Warner Bros. Discovery. Destaca por sus noticieros, series internacionales y programas de humor.","resolution":"HD","region":"Nacional","founded":"1960","website":"https://www.chv.cl"},
+  {"id":5,"name":"La Red","logo_text":"LaRed","logo_color":"#6b228a","logo_text_color":"#ffffff","url":"https://la-red-live.amagi.tv/playlist.m3u8","cat":"Nacional","description":"La Red es un canal de televisión abierta con programación variada que incluye noticieros, debates políticos, deporte y entretenimiento familiar.","resolution":"576p","region":"Nacional","founded":"1991","website":"https://www.lared.cl"},
+  {"id":6,"name":"CNN Chile","logo_text":"CNN","logo_color":"#cc0000","logo_text_color":"#ffffff","url":"https://cnnchilelive.amagi.tv/playlist.m3u8","cat":"Noticias","description":"CNN Chile es el canal de noticias 24 horas más importante del país. Ofrece cobertura en tiempo real de los eventos nacionales e internacionales más relevantes.","resolution":"HD","region":"Nacional","founded":"2008","website":"https://www.cnnchile.com"},
+  {"id":7,"name":"24 Horas","logo_text":"24H","logo_color":"#004a99","logo_text_color":"#ffffff","url":"https://d1gb9psy75ky90.cloudfront.net/24horas/live/576p30/index.m3u8","cat":"Noticias","description":"24 Horas es el canal informativo de TVN que transmite noticias en tiempo real durante todo el día. Cobertura de política, economía, sociedad y cultura.","resolution":"576p","region":"Nacional","founded":"2009","website":"https://www.24horas.cl"},
+  {"id":8,"name":"Tele 5","logo_text":"T5","logo_color":"#1e6e32","logo_text_color":"#ffffff","url":"https://cdn3.wowza.com/1/RTZHRFZhTFkxZU5V/bXJiST13/hls/live/playlist.m3u8","cat":"Regional","description":"Tele 5 es un canal regional que cubre la zona centro-sur de Chile. Programación local con noticias regionales, cultura y entretenimiento para la comunidad.","resolution":"480p","region":"Bío Bío","founded":"1994","website":"https://www.tele5.cl"},
+  {"id":9,"name":"T13 Radio","logo_text":"T13R","logo_color":"#d46800","logo_text_color":"#ffffff","url":"https://playerservices.streamtheworld.com/api/livestream-redirect/T13RADIO_SC","cat":"Radio","description":"T13 Radio es la emisora informativa del grupo Canal 13. Transmite noticias, análisis y entrevistas en vivo durante las 24 horas del día.","resolution":"Audio","region":"Nacional","founded":"2010","website":"https://www.t13.cl/radio"},
+  {"id":10,"name":"TV5Monde","logo_text":"TV5","logo_color":"#003082","logo_text_color":"#ffffff","url":"https://tv5monde-hls-live.akamaized.net/hls/live/657179/fip/index.m3u8","cat":"Internacional","description":"TV5Monde es el canal internacional de la francofonía. Ofrece programación en francés con noticias, documentales, películas y series de Francia y el mundo.","resolution":"HD","region":"Internacional","founded":"1984","website":"https://www.tv5monde.com"}
+];
+
+const CATS     = ["Todos","Nacional","Noticias","Regional","Radio","Internacional"];
+const PER_PAGE = 12;
+
+// ══ STATE ══
+let channels   = [];
+let currentCat = "Todos";
+let currentQ   = "";
+let currentPg  = 1;
+let clapprPlayer = null;
+let modalCh    = null;
+
+// ══ INIT ══
+async function initApp() {
+  let src = "defaults";
+  try {
+    const res = await fetch('./channels.json?' + Date.now());
+    if (res.ok) {
+      const d = await res.json();
+      if (Array.isArray(d) && d.length) { channels = d; src = "json"; }
+    }
+  } catch(_) {}
+  if (src === "defaults") {
+    const saved = localStorage.getItem("tvchile_ch");
+    if (saved) { try { channels = JSON.parse(saved); src = "storage"; } catch(_) {} }
+  }
+  if (!channels.length) channels = JSON.parse(JSON.stringify(DEFAULTS));
+  save();
+  const labels = { json:"✓ channels.json", storage:"💾 caché local", defaults:"📋 defaults" };
+  document.getElementById("srcPill").textContent = labels[src] || "";
+  renderHome();
+}
+function save() { localStorage.setItem("tvchile_ch", JSON.stringify(channels)); }
+
+// ══ VIEWS ══
+function showView(name) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(name + "-view").classList.add("active");
+  if (name === "home") renderHome();
+  if (name !== "player") stopPlayer();
+}
+
+// ══ HOME ══
+function renderHome() {
+  document.getElementById("chCount").textContent = channels.length;
+  document.getElementById("catRow").innerHTML = CATS.map(c =>
+    `<button class="cat-tab ${c===currentCat?"active":""}" onclick="setCat('${c}')">${c}</button>`
+  ).join("");
+  renderGrid();
+}
+function setCat(c)  { currentCat = c; currentPg = 1; renderHome(); }
+function filterCh() { currentQ = document.getElementById("srchInput").value.toLowerCase(); currentPg = 1; renderGrid(); }
+
+function filtered() {
+  return channels.filter(ch =>
+    (currentCat === "Todos" || ch.cat === currentCat) &&
+    (!currentQ || ch.name.toLowerCase().includes(currentQ) || (ch.cat||"").toLowerCase().includes(currentQ))
+  );
+}
+
+// ══ GRID ══
+function renderGrid() {
+  const all = filtered();
+  const pages = Math.max(1, Math.ceil(all.length / PER_PAGE));
+  if (currentPg > pages) currentPg = pages;
+  const start = (currentPg-1) * PER_PAGE;
+  const slice = all.slice(start, start + PER_PAGE);
+
+  const grid  = document.getElementById("chGrid");
+  const empty = document.getElementById("emptyState");
+  const pg    = document.getElementById("pagination");
+  document.getElementById("secLbl").textContent = currentCat === "Todos" ? "Todos los canales" : currentCat;
+
+  if (!all.length) {
+    grid.style.display="none"; empty.style.display="block"; pg.innerHTML=""; return;
+  }
+  grid.style.display="grid"; empty.style.display="none";
+
+  grid.innerHTML = slice.map((ch, i) => {
+    const color = ch.logo_color || "#333";
+    const textColor = ch.logo_text_color || "#fff";
+    const logoText = ch.logo_text || ch.name;
+    const desc = ch.description || "";
+    const res  = ch.resolution || "HD";
+    const reg  = ch.region || ch.cat;
+
+    return `
+    <div class="ch-card" style="animation-delay:${i*.045}s" onclick="openModal(${ch.id})">
+      <div class="ch-logo-wrap">
+        <div class="ch-logo-bg" style="background:${color}"></div>
+        <div class="ch-play-hint"><div class="play-circle"><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        <div class="ch-logo" style="color:${textColor}; text-shadow:0 2px 20px ${color}88,0 0 60px ${color}44">${esc(logoText)}</div>
+      </div>
+      <div class="ch-body">
+        <div class="ch-header">
+          <div class="ch-name">${esc(ch.name)}</div>
+          <div class="ch-badge">${esc(ch.cat)}</div>
+        </div>
+        <div class="ch-desc">${esc(desc)}</div>
+        <div class="ch-meta">
+          <span class="ch-tag">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+            ${esc(res)}
+          </span>
+          <span class="ch-tag">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20"/></svg>
+            ${esc(reg)}
+          </span>
+          ${ch.founded ? `<span class="ch-tag">Est. ${ch.founded}</span>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  // Pagination
+  if (pages <= 1) { pg.innerHTML=""; return; }
+  const range = pageRange(currentPg, pages);
+  let html = `<button class="pg-btn" onclick="goPage(${currentPg-1})" ${currentPg===1?"disabled":""}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+  </button>`;
+  range.forEach(item => {
+    if (item==="…") html += `<span class="pg-dots">…</span>`;
+    else html += `<button class="pg-btn ${item===currentPg?"active":""}" onclick="goPage(${item})">${item}</button>`;
+  });
+  html += `<button class="pg-btn" onclick="goPage(${currentPg+1})" ${currentPg===pages?"disabled":""}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg>
+  </button>`;
+  html += `<span class="pg-info">${start+1}–${Math.min(start+PER_PAGE,all.length)} de ${all.length}</span>`;
+  pg.innerHTML = html;
+}
+
+function pageRange(cur, total) {
+  if (total <= 7) return Array.from({length:total},(_,i)=>i+1);
+  const set = new Set([1,total,cur,cur-1,cur+1,cur-2,cur+2].filter(n=>n>=1&&n<=total));
+  const sorted = [...set].sort((a,b)=>a-b);
+  const r = [];
+  sorted.forEach((n,i)=>{ if(i>0&&n-sorted[i-1]>1) r.push("…"); r.push(n); });
+  return r;
+}
+
+function goPage(p) {
+  const pages = Math.max(1, Math.ceil(filtered().length / PER_PAGE));
+  if (p<1||p>pages) return;
+  currentPg = p;
+  renderGrid();
+  document.getElementById("chGrid").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+// ══ MODAL ══
+function openModal(id) {
+  const ch = channels.find(c=>c.id===id);
+  if (!ch) return;
+  modalCh = ch;
+
+  const color = ch.logo_color || "#333";
+  const textColor = ch.logo_text_color || "#fff";
+  const logoText = ch.logo_text || ch.name;
+
+  // Header
+  document.getElementById("modalLogoBg").style.background = color;
+  document.getElementById("modalLogoText").textContent = logoText;
+  document.getElementById("modalLogoText").style.color = textColor;
+  document.getElementById("modalLogoText").style.textShadow = `0 4px 30px ${color}88, 0 0 80px ${color}55`;
+
+  // Info
+  document.getElementById("modalName").textContent = ch.name;
+  document.getElementById("modalCat").textContent  = ch.cat || "";
+  document.getElementById("modalDesc").textContent = ch.description || "Sin descripción disponible.";
+
+  // Specs
+  const specs = [
+    { label:"Resolución",    val: ch.resolution || "—" },
+    { label:"Región",        val: ch.region     || ch.cat || "—" },
+    { label:"Fundado",       val: ch.founded    || "—" },
+    { label:"Categoría",     val: ch.cat        || "—" },
+  ];
+  document.getElementById("specsGrid").innerHTML = specs.map(s=>`
+    <div class="spec-item">
+      <div class="spec-label">${s.label}</div>
+      <div class="spec-val">${s.val}</div>
+    </div>
+  `).join("");
+
+  const playBtn = document.getElementById("modalPlayBtn");
+  if (!ch.url) {
+    playBtn.style.opacity = ".4";
+    playBtn.textContent = "Stream no disponible";
+    playBtn.onclick = () => toast("⚠️ Este canal no tiene URL configurada");
+  } else {
+    playBtn.style.opacity = "1";
+    playBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Ver en vivo — ${ch.name}`;
+    playBtn.onclick = () => { hideModal(); playChannel(ch.id); };
+  }
+
+  document.getElementById("modalBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function hideModal() {
+  document.getElementById("modalBackdrop").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById("modalBackdrop")) hideModal();
+}
+
+document.addEventListener("keydown", e => { if (e.key==="Escape") hideModal(); });
+
+// ══ PLAYER (HARDENED) ══
+function playChannel(id) {
+  const ch = channels.find(c => c.id === id);
+  if (!ch || !ch.url) { toast("⚠️ Sin URL configurada"); return; }
+
+  // ─── VALIDACIÓN DE SEGURIDAD (solo informativa, no bloquea) ─
+  const validation = Security.validateStreamURL(ch.url);
+
+  showView("player");
+  document.getElementById("nav-home")?.classList.add("active");
+  document.getElementById("plName").textContent      = ch.name;
+  document.getElementById("plCat").textContent       = ch.cat || "";
+  document.getElementById("plLabelName").textContent = ch.name;
+  document.getElementById("plLabelSub").textContent  = ch.description ? ch.description.slice(0, 60) + "…" : ch.cat || "";
+
+  updateSecurityBar(validation, ch.url);
+
+  const err  = document.getElementById("plError");
+  const load = document.getElementById("plLoading");
+  err.classList.remove("show");
+  load.style.display = "flex";
+
+  // Related channels — renderizar ANTES del player para que no se pisen
+  document.getElementById("relGrid").innerHTML = channels
+    .filter(c => c.id !== id).slice(0, 6)
+    .map(c => `
+      <div class="ch-card" onclick="openModal(${c.id})">
+        <div class="ch-logo-wrap">
+          <div class="ch-logo-bg" style="background:${c.logo_color||'#333'}"></div>
+          <div class="ch-play-hint"><div class="play-circle"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+          <div class="ch-logo" style="color:${c.logo_text_color||'#fff'}">${esc(c.logo_text||c.name)}</div>
+        </div>
+        <div class="ch-body">
+          <div class="ch-header"><div class="ch-name">${esc(c.name)}</div><div class="ch-badge">${esc(c.cat)}</div></div>
+          <div class="ch-desc">${esc((c.description||"").slice(0,80))}…</div>
+        </div>
+      </div>
+    `).join("");
+
+  // ─── INICIAR CLAPPR ────────────────────────────────────────
+  if (clapprPlayer) {
+    try { clapprPlayer.destroy(); } catch(_) {}
+    clapprPlayer = null;
+  }
+  const playerContainer = document.getElementById("clapprPlayer");
+  playerContainer.innerHTML = "";
+
+  clapprPlayer = new Clappr.Player({
+    source: ch.url,
+    el: playerContainer,
+    width: "100%",
+    height: "100%",
+    autoPlay: true,
+    mute: false,
+    hlsjsConfig: {
+      enableWorker: true,
+      maxBufferLength: 20,
+      manifestLoadingMaxRetry: 3,
+      fragLoadingMaxRetry: 4,
+    },
+    events: {
+      onReady: function() { load.style.display = "none"; },
+      onPlay:  function() { load.style.display = "none"; },
+      onError: function() {
+        load.style.display = "none";
+        err.textContent = "⚠️ No se pudo cargar la transmisión. Puede estar offline o bloqueada por CORS.";
+        err.classList.add("show");
+      },
+    },
+  });
+}
+
+// ── SECURITY BAR ────────────────────────────────────────
+function updateSecurityBar(validation, url) {
+  const badge   = document.getElementById("secBadge");
+  const preview = document.getElementById("secUrlPreview");
+  const chks    = document.getElementById("secChecks");
+
+  // Badge principal
+  badge.className = "sec-badge " + validation.level;
+  const icon = validation.level === "ok" ? "🔒" : validation.level === "warn" ? "⚠️" : "🚫";
+  const label = validation.level === "ok" ? "Stream seguro"
+              : validation.level === "warn" ? "Advertencia de seguridad"
+              : "Stream bloqueado";
+  badge.innerHTML = `<div class="sec-dot"></div>${icon} ${label}`;
+
+  // Mostrar solo el dominio, nunca la URL completa
+  preview.textContent = Security.safeDisplayURL(url);
+  preview.title       = "Solo se muestra el dominio del servidor";
+
+  // Checks individuales
+  const c = validation.checks;
+  const checkItems = [
+    { key: "isHttps",     label: "HTTPS",      pass: c.isHttps },
+    { key: "noMalicious", label: "Sin código",  pass: c.noMalicious },
+    { key: "isM3U8",      label: "M3U8 válido", pass: c.isM3U8 },
+    { key: "notBlocked",  label: "No bloqueado",pass: c.notBlocked },
+  ];
+  chks.innerHTML = checkItems.map(ci =>
+    `<span class="sec-check ${ci.pass ? "pass" : "fail"}">
+      ${ci.pass ? "✓" : "✗"} ${ci.label}
+    </span>`
+  ).join("");
+}
+
+function stopPlayer() {
+  if (clapprPlayer) {
+    try { clapprPlayer.destroy(); } catch(_) {}
+    clapprPlayer = null;
+  }
+  const container = document.getElementById("clapprPlayer");
+  if (container) container.innerHTML = "";
+}
+
+// ══ UTILS ══
+function esc(s) { return Security.sanitizeText(s); }
+let _tt;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove("show"), 2700);
+}
+
+// ══ GO ══
+initApp();
+</script>
+</body>
+</html>
